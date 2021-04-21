@@ -3,9 +3,12 @@ package com.metmit.simulation.handler;
 import android.app.Activity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.Window;
 import android.webkit.WebView;
+import android.widget.PopupWindow;
 import android.widget.TextView;
 
+import com.metmit.simulation.handler.PageContainer;
 import com.metmit.simulation.Click;
 import com.metmit.simulation.Swipe;
 import com.metmit.simulation.handler.traversor.Collector;
@@ -20,11 +23,14 @@ import com.metmit.simulation.handler.xpath.model.XNodes;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
+
+import de.robv.android.xposed.XposedHelpers;
 
 public class ViewImage {
 
@@ -45,8 +51,8 @@ public class ViewImage {
      */
     private int indexOfParent = -1;
 
-    private LazyValueGetter<String> type;
-    private LazyValueGetter<String> text;
+    private LazyValueGetter type;
+    private LazyValueGetter text;
 
     private ViewImages allElementsCache = null;
 
@@ -60,30 +66,16 @@ public class ViewImage {
         }
         this.originView = view;
         attributes = ValueGetters.valueGetters(this);
-        type = attrName(SuperAppium.baseClassName);
-        text = attrName(SuperAppium.text);
+        type = attributes.get(SuperAppium.baseClassName);
+        text = attributes.get(SuperAppium.text);
     }
 
     public String getType() {
-        return type.get();
+        return (String)type.get();
     }
 
     public String getText() {
-        return text.get();
-    }
-
-    public boolean setText(CharSequence str) {
-        if (originView instanceof TextView) {
-            TextView originView = (TextView) this.originView;
-            originView.setText(str);
-            return originView.getText().equals(str);
-        }
-        return false;
-    }
-
-    @SuppressWarnings("unchecked")
-    private <T> LazyValueGetter<T> attrName(String attrName) {
-        return attributes.get(attrName);
+        return (String)text.get();
     }
 
     public Collection<String> attributeKeys() {
@@ -267,7 +259,7 @@ public class ViewImage {
      * 获取后一个的兄弟节点 对象
      */
     public ViewImage nextSibling() {
-        if (parent == null) { // root
+        if (parent == null) {
             return null;
         }
 
@@ -338,106 +330,75 @@ public class ViewImage {
     }
 
     /**
-     * 在当前节点上，通过xpath，查找全部匹配项
-     * TODO 增加查询时间
-     *
-     * @param xpath xpath表达式
+     * 查找第一个匹配项
+     */
+    public ViewImage xPath(String xpath) {
+
+        ViewImages viewImages = xPaths(xpath);
+        if (viewImages.size() >= 1) {
+            return viewImages.get(0);
+        }
+
+        List<PopupWindow> pupWindows = PageContainer.getTopPupWindows();
+        for (PopupWindow pupWindow : pupWindows) {
+            View mDecorView = (View) XposedHelpers.getObjectField(pupWindow, "mDecorView");
+            ViewImages DialogWindowXpath = new ViewImage(mDecorView).xPaths(xpath);
+            if (DialogWindowXpath.size() >= 1) {
+                return DialogWindowXpath.get(0);
+            }
+        }
+
+        List<Window> dialogWindows = PageContainer.getTopDialogWindows();
+        for (Window dialogWindow : dialogWindows) {
+            ViewImages DialogWindowXpath = new ViewImage(dialogWindow.getDecorView()).xPaths(xpath);
+            if (DialogWindowXpath.size() >= 1) {
+                return DialogWindowXpath.get(0);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * 查找全部匹配项
      */
     public ViewImages xPaths(String xpath) {
         return XpathParser.compileNoError(xpath).evaluateToElement(new XNodes(XNode.e(this)));
     }
 
     /**
-     * "//android.widget.TextView[@contentDescription='XXXXXXXXXXXXXXXX']/text()"
-     *
-     * @param xpath xpath表达式
-     * @return 拿到对应View里面的具体内容
+     * 获取节点的内容
      */
     public String xpath2String(String xpath) {
         return XpathParser.compileNoError(xpath).evaluateToSingleString(new XNodes(XNode.e(this)));
     }
 
-    /**
-     * 根据xpath表达式查找第一个元素对应的ViewImage
-     * "//android.widget.TextView[@id='XXXXXXXXXXXXXX']"
-     */
-    public ViewImage xPath(String xpath) {
-        ViewImages viewImages = xPaths(xpath);
-        if (viewImages.size() == 0) {
-            //如果当前页面上没找到，尝试从顶层的对话框和弹窗上找
-            // return PageManager.tryGetTopView(xpath);
-            return null;
-        }
-        return viewImages.get(0);
-    }
-
-    /**
-     * 根据text匹配TextView，查找 & 点击
-     */
-    public boolean clickTextView(String text) {
-        return this.clickByXpath(String.format("//android.widget.TextView[@text='%s']", text));
-    }
-
-    /**
-     * 根据text模糊匹配TextView，查找 & 点击
-     */
-    public boolean clickTextViewContains(String text) {
-        return this.clickByXpath(String.format("//android.widget.TextView[contains(@text, '%s')]", text));
-    }
-
-    /**
-     * 查找到并点击
-     *
-     * @param xpath xpath表达式
-     * @return 是否点击成功
-     */
-    public boolean clickByXpath(String xpath) {
-        ViewImages viewImages = xPaths(xpath);
-        if (viewImages.size() == 0) {
-            // ViewImage viewImage = PageManager.tryGetTopView(xpath);
-            // if (viewImage == null) {
-            //     return false;
-            // }
-            // return viewImage.click();
-            return false;
-        }
-        return viewImages.get(0).click();
-    }
-
-    /**
-     * 对 TextView 类型 设置指定内容
-     *
-     * @param xpathExpression xpath表达式
-     * @param content         具体内容
-     * @return 是否设置成功
-     */
-    public boolean typeByXpath(String xpathExpression, String content) {
-        ViewImages viewImages = xPaths(xpathExpression);
-        if (viewImages.size() == 0) {
-            return false;
-        }
-        View originView = viewImages.get(0).getOriginView();
-        if (!(originView instanceof TextView)) {
-            return false;
-        }
-        TextView editText = (TextView) originView;
-        editText.setText(content);
-        return true;
-    }
-
-    /**
-     * 点击当前View（本节点）
-     */
     public boolean click() {
         return Click.click(this);
     }
 
+    public boolean click(String xpath) {
+        ViewImage viewImage = xPath(xpath);
+        if (viewImage == null) return false;
+        return viewImage.click();
+    }
+
+    public boolean setText(CharSequence str) {
+        if (originView instanceof TextView) {
+            TextView originView = (TextView) this.originView;
+            originView.setText(str);
+            return true;
+            // return originView.getText().equals(str);
+        }
+        return false;
+    }
+
     /**
-     * 向下滑动
-     * @param height 滑动高度，如果为负数，则向上滑动
+     * 向上滑动
+     * @param height 滑动高度，如果为负数，则向下滑动
      */
-    public void swipeDown(int height) {
-        swipeDown(height, 300);
+    public void swipeUp(int height, long duration) {
+        swipe(-height, 0, duration);
     }
 
     /**
@@ -449,12 +410,12 @@ public class ViewImage {
     }
 
     /**
-     * 向右滑动
+     * 向左滑动
      *
-     * @param width 滑动宽度，如果为负数，则向左滑动
+     * @param width 滑动宽度，如果为负数，则向右滑动
      */
-    public void swipeRight(int width) {
-        swipeRight(width, 300);
+    public void swipeLeft(int width, long duration) {
+        swipe(0, -width, duration);
     }
 
     /**
@@ -509,7 +470,6 @@ public class ViewImage {
         if (toY < 2) {
             toY = 2;
         }
-        // Helper.log(String.format("fromX: %s, toX: %s, fromY: %s, toY: %s", fromX, toX, fromY, toY));
         Swipe.simulateScroll(this, fromX, fromY, toX, toY, duration);
     }
 

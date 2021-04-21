@@ -1,9 +1,10 @@
 package com.metmit.simulation;
 
-import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Intent;
 import android.net.Uri;
+
+import com.metmit.simulation.handler.PageContainer;
 
 import java.util.HashMap;
 
@@ -12,49 +13,34 @@ import java.util.HashMap;
  */
 public class Jump {
 
-    @SuppressLint("StaticFieldLeak")
-    public static Activity topActivity = null;
-
-    public static void setActivity(Activity activity) {
-        topActivity = activity;
-    }
-
-    public static Activity getTopActivity() {
-        return topActivity;
-    }
-
     /**
      * 从当前activity跳转到指定activity
      *
-     * @param activityClassName 类全程
+     * @param activityClassName 类全称
      * @param extras            参数
      */
-    public static void jumpActivity(String activityClassName, HashMap<String, String> extras) {
+    public static void jumpActivity(String activityClassName, HashMap<String, String> extras) throws ClassNotFoundException {
 
-        try {
-            Class<?> clazz = Class.forName(activityClassName);
+        Class<?> clazz = Class.forName(activityClassName, false, PageContainer.getClassLoader());
 
-            Activity activity = getTopActivity();
+        Activity activity = PageContainer.getTopActivity();
 
-            Intent intent = new Intent(activity, clazz);
+        Intent intent = new Intent(activity, clazz);
 
-            if (extras != null) {
-                for (String key : extras.keySet()) {
-                    intent.putExtra(key, extras.get(key));
-                }
+        if (extras != null) {
+            for (String key : extras.keySet()) {
+                intent.putExtra(key, extras.get(key));
             }
-
-            activity.startActivity(intent);
-
-        } catch (Exception ignored) {
         }
+
+        activity.startActivity(intent);
     }
 
     /**
      * 跳转到指定包名的指定activity
      *
      * @param packageName       包名
-     * @param activityClassName 类全程
+     * @param activityClassName 类全称
      * @param extras            参数
      */
     public static void jumpActivity(String packageName, String activityClassName, HashMap<String, String> extras) {
@@ -69,7 +55,7 @@ public class Jump {
             }
         }
 
-        getTopActivity().startActivity(intent);
+        PageContainer.getTopActivity().startActivity(intent);
     }
 
     /**
@@ -88,6 +74,6 @@ public class Jump {
 
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
 
-        getTopActivity().startActivity(intent);
+        PageContainer.getTopActivity().startActivity(intent);
     }
 }
