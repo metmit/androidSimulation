@@ -16,6 +16,8 @@ import java.util.concurrent.ThreadLocalRandom;
 
 // import de.robv.android.xposed.XposedHelpers;
 
+import de.robv.android.xposed.XposedHelpers;
+
 import static android.view.MotionEvent.TOOL_TYPE_FINGER;
 
 /**
@@ -129,7 +131,6 @@ public class Click {
         View rootView = viewImage.rootViewImage().getOriginView();
         final Object mViewRootImpl = XposedHelpers.callMethod(rootView, "getViewRootImpl");
         if (mViewRootImpl == null) {
-            XposedBridge.log("mViewRootImpl 为 null");
             return false;
         }
         XposedHelpers.callMethod(mViewRootImpl, "dispatchInputEvent", inputEvent);
