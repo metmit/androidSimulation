@@ -29,6 +29,10 @@ public class Click {
     public static boolean click(ViewImage viewImage) {
 
         // 如果上层有 view，能点击吗？
+        if (clickByPoint(viewImage)) {
+            return true;
+        }
+
         if (!clickByPoint(viewImage)) { // 根据坐标点击
             //开始尝试对ListItem进行点击，ListItem需要List事件分发(onItemClick)才会生效
             ViewImage parentViewImage = viewImage.parentNode();
@@ -43,6 +47,8 @@ public class Click {
         }
 
         if (viewImage.getOriginView().isClickable()) {
+            // performClick(); 只能在主线程调用，在子线程中不可以使用。
+            /* Only the original thread that created a view hierarchy can touch its views */
             if (viewImage.getOriginView().performClick()) {
                 return true;
             }
@@ -120,14 +126,13 @@ public class Click {
      * 分发事件
      */
     public static boolean dispatchInputEvent(ViewImage viewImage, InputEvent inputEvent) {
-        // TODO 反射
-
-        // View rootView = viewImage.rootViewImage().getOriginView();
-        // final Object mViewRootImpl = XposedHelpers.callMethod(rootView, "getViewRootImpl");
-        // if (mViewRootImpl == null) {
-        //     return false;
-        // }
-        // XposedHelpers.callMethod(mViewRootImpl, "dispatchInputEvent", inputEvent);
+        View rootView = viewImage.rootViewImage().getOriginView();
+        final Object mViewRootImpl = XposedHelpers.callMethod(rootView, "getViewRootImpl");
+        if (mViewRootImpl == null) {
+            XposedBridge.log("mViewRootImpl 为 null");
+            return false;
+        }
+        XposedHelpers.callMethod(mViewRootImpl, "dispatchInputEvent", inputEvent);
         return true;
     }
 
